@@ -1,74 +1,98 @@
-# Perishable Inventory Control with Shelf-Life Constraints (Project Proposal)
+# Perishable Inventory Control with Shelf-Life Constraints  
+**Reinforcement Learning Project Proposal**  
+**Team Members:** [Name 1], [Name 2], [Name 3]
 
-**Team:** _Name 1_, _Name 2_, _Name 3_ (placeholders)
+---
 
-## B. Motivation
-Inventory control is a classic sequential decision problem. The perishable setting is uniquely challenging because inventory is not only a quantity but an **age distribution**: today’s ordering decision changes tomorrow’s feasibility through both **service** (meeting demand) and **spoilage** (waste). This project proposes an RL study of ordering policies under stochastic demand with explicit shelf-life dynamics.
+## 1. Motivation
 
-## C. RL Formulation / Environment (MDP)
-We formulate daily ordering as an MDP.
+Inventory control is a classic sequential decision-making problem. The perishable setting (e.g., fresh food, blood banks) is uniquely challenging because inventory is not defined by a single quantity, but by an **age distribution**. Today's ordering decision affects tomorrow's feasibility through both **service** (meeting demand) and **spoilage** (waste).
 
-- **State space:**
-  \(s_t = (n_1,\dots,n_D)\), where \(n_i\) is the number of items with \(i\) days of remaining shelf-life (age-structured inventory vector).
+This project proposes a reinforcement learning (RL) study to learn optimal ordering policies under stochastic demand with explicit shelf-life constraints, trading off the cost of waste against the cost of lost sales.
 
-- **Action space:**
-  \(a_t\in\{0,1,\dots,A_{\max}\}\), the order quantity placed at the start of the day.
+---
 
-- **Demand model (stochastic):**
-  Daily demand \(u_t\) is random (modeled as a Poisson process with rate \(\lambda\); other rates can be explored in sensitivity analysis).
+## 2. MDP Formulation (The Environment)
 
-- **Transition steps (explicit sequence):**
-  1) Receive order: add \(a_t\) items to the freshest bucket.
-  2) Realize demand \(u_t\).
-  3) Sell using **FEFO** (oldest items sold first).
-  4) Waste: any remaining items that expire today are discarded.
-  5) Age inventory: shift all remaining items one day closer to expiry.
+We formulate the daily ordering problem as a finite-horizon **Markov Decision Process (MDP)**.
 
-- **Reward definition:**
-  Profit-like reward that trades off revenue, ordering cost, waste, and stockouts:
-  $$
-  r_t = p\,\text{sold}_t - c\,a_t - w\,\text{waste}_t - s\,\text{stockout}_t.
-  $$
-  Here \(p\) is selling price, \(c\) is ordering cost, \(w\) penalizes waste, and \(s\) penalizes unmet demand.
+- **State Space:**  
+  \( S_t = (n_1, n_2, \dots, n_D) \), where \( n_i \) is the number of items with \( i \) days of remaining shelf-life.  
+  *Note: The maximum inventory per age bucket will be bounded to keep the state space tractable.*
 
-- **Episode setup:**
-  Finite-horizon episodes of length \(T\) (days) with discount factor \(\gamma\in(0,1)\).
+- **Action Space:**  
+  \( A_t \in \{0, 1, \dots, A_{\max}\} \).  
+  The discrete number of units ordered at the start of day \( t \).
 
-## D. Implemented Agents / Methods
-We will compare classical control algorithms on this MDP:
+- **Stochastic Demand:**  
+  Daily demand \( U_t \sim \text{Poisson}(\lambda) \).
 
-- **DP Value Iteration baseline:**
-  Solve a bounded version of the MDP via value iteration to produce an “optimal” baseline on a tractable state space (with truncated demand support).
+- **Transition Dynamics (Daily Sequence):**
+  1. **Order Arrival:** Add \( A_t \) new items to the freshest bucket (\( n_D \)).
+  2. **Demand Realization:** Sample \( U_t \).
+  3. **Fulfillment (FEFO):** Meet demand using items with the lowest remaining shelf-life first.
+  4. **Waste:** Any items remaining in bucket \( n_1 \) expire and are discarded.
+  5. **Aging:** Shift all remaining items so that \( n_i \leftarrow n_{i+1} \).
 
-- **Tabular Q-learning and SARSA:**
-  Learn action-values via TD control with \(\epsilon\)-greedy exploration. Key hyperparameters are learning rate \(\alpha\), discount \(\gamma\), and exploration schedule \(\epsilon\).
+- **Reward Function:**  
+  A profit-based reward capturing operational trade-offs:
+  - Revenue from items sold  
+  - Ordering cost  
+  - Penalty for wasted (expired) items  
+  - Penalty for unmet demand (stockouts)
 
-- **Monte Carlo control:**
-  Consider first-visit MC control as an additional baseline if time allows.
+---
 
-- **Function approximation:**
-  Planned extension only (e.g., linear features) if tabular methods do not scale to larger \(D\) or inventory bounds.
+## 3. Proposed Methods
 
-## E. Evaluation Plan
-- **Metrics:** average episode return (profit proxy), waste rate, stockout rate, and fill rate.
-- **Protocol:** train each agent for a fixed number of episodes, then evaluate the learned greedy policy over held-out episodes.
-- **Reproducibility:** run multiple random seeds and report mean \(\pm\) variability.
-- **Sensitivity analysis:** vary demand rate \(\lambda\), shelf-life \(D\), and exploration/learning hyperparameters (sweep over \(\alpha\), \(\epsilon\)-decay).
+We will compare classical reinforcement learning approaches aligned with the course syllabus:
 
-## F. Expected Results & Poster Figures
-We expect a clear tradeoff frontier between waste and stockouts:
+- **Dynamic Programming (Baseline):**  
+  Implement **Value Iteration** on a small version of the problem (e.g., \( D = 2 \) or \( D = 3 \)) to compute the optimal policy for comparison.
 
-- Learning curves showing convergence behavior across algorithms.
-- Bar chart comparing mean return (with error bars across seeds).
-- Waste-vs-stockout (or waste-vs-fill) scatter to visualize operational tradeoffs.
+- **Temporal-Difference Learning:**  
+  Implement **Q-Learning** (off-policy) and **SARSA** (on-policy) with ε-greedy exploration (with decaying ε) to learn policies without explicit knowledge of the demand distribution.
 
-## G. Repo Reproducibility (brief)
-Planned usage is via simple CLI scripts:
+- **Monte Carlo Methods:**  
+  Implement **On-Policy Monte Carlo Control** to compare convergence behavior and variance against TD methods.
 
-- Train: `python -m src.experiments.train --agent <qlearning|sarsa|dp|mc> --episodes <N>`
-- Evaluate: `python -m src.experiments.evaluate --agent-path <path> --agent-type <type> --episodes <N>`
-- Plot: `python -m src.plotting.make_plots --results-dir <runs_dir> --output-dir <figures_dir>`
+---
 
-## H. References
-- Sutton, R. S., & Barto, A. G. (2018). *Reinforcement Learning: An Introduction* (2nd ed.).
-- Course notes/readings on MDPs, dynamic programming, and inventory control.
+## 4. Evaluation Plan
+
+Agents will be evaluated using a fixed-seed protocol over **N = 1000** test episodes.
+
+- **Primary Metric:**  
+  Average cumulative reward (profit).
+
+- **Secondary Metrics:**  
+  - Waste rate = expired inventory / ordered inventory  
+  - Stockout rate = unmet demand / total demand
+
+- **Hypothesis:**  
+  Temporal-Difference methods are expected to converge faster than Monte Carlo methods due to lower variance in return estimation under stochastic demand.
+
+- **Planned Visualizations:**  
+  - Learning curves (cumulative reward vs. training episode) for each agent  
+  - Bar chart comparing final average profit across all agents  
+  - Waste-rate vs. stockout-rate scatter plot to visualize the trade-off frontier
+
+- **Sensitivity Analysis:**  
+  We will vary shelf-life length \( D \) and demand rate \( \lambda \) to study how problem parameters affect learned policy quality.
+
+---
+
+## 5. Reproducibility & Deliverables
+
+The project will result in a modular and reproducible Python codebase, including:
+
+- A custom environment implementing perishable inventory dynamics  
+- Separate agent implementations for Dynamic Programming, Q-Learning, SARSA, and Monte Carlo methods  
+- A command-line interface for training agents and generating plots
+
+Final deliverables will include:
+- A written report describing the environment, methods, and results  
+- A scientific poster summarizing the main findings  
+- A reproducible codebase accompanying the report
+
+---
