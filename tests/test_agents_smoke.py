@@ -20,6 +20,9 @@ from src.envs.perishable_inventory import PerishableInventoryEnv
 from src.agents.q_learning import QLearningAgent
 from src.agents.sarsa import SARSAAgent
 from src.agents.mc_control import MonteCarloAgent
+from src.agents.linear_fa import LinearFAAgent
+from src.agents.dp_value_iteration import DPValueIterationAgent
+from src.config import DPConfig
 
 
 class TestQLearningSmoke:
@@ -320,6 +323,144 @@ class TestAgentSaveLoad:
         assert loaded.epsilon == agent.epsilon
         assert loaded.q_table[((0, 0), 0)] == 1.5
         assert loaded.q_table[((1, 2), 3)] == -0.5
+
+
+class TestLinearFASmoke:
+    """Smoke tests for Linear Function Approximation agent."""
+
+    @pytest.fixture
+    def simple_env(self):
+        config = EnvConfig(
+            shelf_life=3,
+            max_order=5,
+            max_inventory=10,
+            horizon=20,
+            demand_mean=3.0,
+        )
+        return PerishableInventoryEnv(config=config, seed=42)
+
+    @pytest.fixture
+    def agent(self, simple_env):
+        return LinearFAAgent(
+            num_actions=simple_env.num_actions,
+            shelf_life=3,
+            max_inventory=10,
+            gamma=0.99,
+            alpha=0.01,
+            epsilon_start=1.0,
+            epsilon_min=0.1,
+            epsilon_decay=0.95,
+            seed=42,
+        )
+
+    def test_instantiation(self, agent):
+        assert agent is not None
+        assert agent.name == "Linear-FA"
+        # D + 3 features
+        assert agent.num_features == 6
+
+    def test_action_selection(self, agent, simple_env):
+        state, _ = simple_env.reset()
+        for _ in range(10):
+            action = agent.select_action(state, training=True)
+            assert simple_env.action_space.contains(action)
+            state, _, done, _, _ = simple_env.step(action)
+            if done:
+                break
+
+    def test_greedy_action(self, agent, simple_env):
+        state, _ = simple_env.reset()
+        action = agent.select_action(state, training=False)
+        assert simple_env.action_space.contains(action)
+
+    def test_training_no_crash(self, agent, simple_env):
+        rewards = []
+        for _ in range(50):
+            stats = agent.train_episode(simple_env)
+            rewards.append(stats["total_reward"])
+        assert len(rewards) == 50
+        assert all(np.isfinite(r) for r in rewards)
+
+    def test_weights_update(self, agent, simple_env):
+        initial_weights = agent.weights.copy()
+        for _ in range(10):
+            agent.train_episode(simple_env)
+        assert not np.array_equal(agent.weights, initial_weights)
+
+    def test_save_load(self, agent, simple_env, tmp_path):
+        for _ in range(5):
+            agent.train_episode(simple_env)
+        filepath = str(tmp_path / "linear_fa_agent.pkl")
+        agent.save(filepath)
+        loaded = LinearFAAgent.load(filepath, seed=123)
+        assert loaded.num_actions == agent.num_actions
+        assert loaded.num_features == agent.num_features
+        assert loaded.gamma == agent.gamma
+        assert np.array_equal(loaded.weights, agent.weights)
+
+
+class TestDPSmoke:
+    """Smoke tests for Dynamic Programming (Value Iteration) agent."""
+
+    @pytest.fixture
+    def simple_env(self):
+        config = EnvConfig(
+            shelf_life=2,
+            max_order=3,
+            max_inventory=4,
+            horizon=20,
+            demand_mean=2.0,
+        )
+        return PerishableInventoryEnv(config=config, seed=42)
+
+    @pytest.fixture
+    def agent(self, simple_env):
+        dp_config = DPConfig(theta=1e-4, max_iter=2000)
+        return DPValueIterationAgent(
+            simple_env, dp_config, gamma=0.99, verbose=False,
+        )
+
+    def test_instantiation(self, agent):
+        assert agent is not None
+
+    def test_solve_converges(self, agent):
+        stats = agent.solve()
+        assert stats["converged"] is True
+        assert stats["iterations"] > 0
+        assert stats["final_delta"] < 1e-4
+        assert len(agent.convergence_history) == stats["iterations"]
+
+    def test_policy_extracted(self, agent):
+        agent.solve()
+        summary = agent.get_policy_summary()
+        assert summary["num_states"] > 0
+        assert 0 <= summary["mean_action"] <= 3
+
+    def test_select_action(self, agent, simple_env):
+        agent.solve()
+        state, _ = simple_env.reset()
+        action = agent.select_action(state)
+        assert simple_env.action_space.contains(action)
+        # Also works with training kwarg
+        action2 = agent.select_action(state, training=False)
+        assert action == action2
+
+    def test_evaluate_policy(self, agent, simple_env):
+        agent.solve()
+        eval_stats = agent.evaluate_policy(simple_env, num_episodes=10, seed=99)
+        assert "mean_reward" in eval_stats
+        assert "mean_waste_rate" in eval_stats
+        assert "mean_fill_rate" in eval_stats
+        assert np.isfinite(eval_stats["mean_reward"])
+
+    def test_save_load(self, agent, simple_env, tmp_path):
+        agent.solve()
+        filepath = str(tmp_path / "dp_agent.pkl")
+        agent.save(filepath)
+        agent.load_from(filepath)
+        state, _ = simple_env.reset()
+        action = agent.select_action(state)
+        assert simple_env.action_space.contains(action)
 
 
 if __name__ == "__main__":

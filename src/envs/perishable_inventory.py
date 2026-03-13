@@ -106,8 +106,8 @@ class PerishableInventoryEnv:
         state = list(self._state)
         order_qty = action
 
-        # 1. Receive order → freshest bucket
-        state[self.D - 1] = min(state[self.D - 1] + order_qty, self.N_max)
+        # 1. Receive order → freshest bucket (additive, not overwrite)
+        state[-1] = min(state[-1] + order_qty, self.N_max)
 
         # 2. Demand
         demand = self._random.poisson(self.lam)
@@ -175,8 +175,8 @@ class PerishableInventoryEnv:
         """
         s = list(state)
 
-        # 1. Receive
-        s[self.D - 1] = min(s[self.D - 1] + action, self.N_max)
+        # 1. Receive order → freshest bucket (additive, not overwrite)
+        s[-1] = min(s[-1] + action, self.N_max)
 
         # 2-3. Sell FEFO
         sold = 0

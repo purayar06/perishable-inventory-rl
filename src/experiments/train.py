@@ -19,6 +19,7 @@ from ..agents.q_learning import QLearningAgent
 from ..agents.sarsa import SARSAAgent
 from ..agents.mc_control import MonteCarloAgent
 from ..agents.dp_value_iteration import DPValueIterationAgent
+from ..agents.linear_fa import LinearFAAgent
 from ..utils.logging import Logger, MetricsTracker
 from ..utils.seeding import set_global_seed
 from ..plotting.make_plots import (
@@ -32,43 +33,59 @@ def create_agent(
     agent_type: str,
     num_actions: int,
     config: TrainingConfig,
+    env_config: Optional["EnvConfig"] = None,
     seed: Optional[int] = None,
 ):
     """
     Create an agent of the specified type.
 
     Args:
-        agent_type: One of 'qlearning', 'sarsa', 'mc'
+        agent_type: One of 'qlearning', 'sarsa', 'mc', 'linear_fa'
         num_actions: Number of actions in the environment
         config: Training configuration
+        env_config: Environment config (needed for linear_fa)
         seed: Random seed
 
     Returns:
         Agent instance
     """
-    agent_classes = {
+    tabular_classes = {
         "qlearning": QLearningAgent,
         "sarsa": SARSAAgent,
         "mc": MonteCarloAgent,
     }
 
-    if agent_type not in agent_classes:
+    if agent_type in tabular_classes:
+        agent_class = tabular_classes[agent_type]
+        return agent_class(
+            num_actions=num_actions,
+            gamma=config.gamma,
+            alpha=config.alpha,
+            epsilon_start=config.epsilon_start,
+            epsilon_min=config.epsilon_min,
+            epsilon_decay=config.epsilon_decay,
+            seed=seed,
+        )
+    elif agent_type == "linear_fa":
+        if env_config is None:
+            raise ValueError("env_config is required for linear_fa agent")
+        return LinearFAAgent(
+            num_actions=num_actions,
+            shelf_life=env_config.shelf_life,
+            max_inventory=env_config.max_inventory,
+            gamma=config.gamma,
+            alpha=config.alpha,
+            epsilon_start=config.epsilon_start,
+            epsilon_min=config.epsilon_min,
+            epsilon_decay=config.epsilon_decay,
+            td_method="sarsa",
+            seed=seed,
+        )
+    else:
         raise ValueError(
             f"Unknown agent type: {agent_type}. "
-            f"Choose from {list(agent_classes.keys())}"
+            f"Choose from {list(tabular_classes.keys()) + ['linear_fa']}"
         )
-
-    agent_class = agent_classes[agent_type]
-
-    return agent_class(
-        num_actions=num_actions,
-        gamma=config.gamma,
-        alpha=config.alpha,
-        epsilon_start=config.epsilon_start,
-        epsilon_min=config.epsilon_min,
-        epsilon_decay=config.epsilon_decay,
-        seed=seed,
-    )
 
 
 def train_agent(
@@ -103,6 +120,7 @@ def train_agent(
         agent_type=agent_type,
         num_actions=env.num_actions,
         config=config.training,
+        env_config=config.env,
         seed=config.seed,
     )
 
@@ -130,6 +148,7 @@ def train_agent(
             sold=stats["total_sold"],
             waste=stats["total_waste"],
             stockout=stats["total_stockout"],
+            ordered=stats["total_ordered"],
         )
         tracker.end_episode()
 
@@ -216,7 +235,9 @@ def train_dp(
 
     env = PerishableInventoryEnv(config=config.env, seed=config.seed)
 
-    dp_agent = DPValueIterationAgent(env, config.dp, verbose=verbose)
+    dp_agent = DPValueIterationAgent(
+        env, config.dp, gamma=config.training.gamma, verbose=verbose
+    )
     solve_stats = dp_agent.solve()
 
     eval_stats = dp_agent.evaluate_policy(
@@ -229,6 +250,11 @@ def train_dp(
         os.makedirs(save_path, exist_ok=True)
         dp_agent.save(os.path.join(save_path, "dp_agent.pkl"))
 
+        # Save convergence history separately for plotting
+        convergence_history = solve_stats.pop("convergence_history", [])
+        with open(os.path.join(save_path, "convergence.json"), "w") as f:
+            json.dump(convergence_history, f)
+
         results = {
             "solve_stats": solve_stats,
             "eval_stats": eval_stats,
@@ -237,6 +263,43 @@ def train_dp(
         with open(os.path.join(save_path, "dp_results.json"), "w") as f:
             json.dump(results, f, indent=2, default=str)
 
+        # Write a synthetic metrics.json so generate_all_plots can
+        # discover the DP baseline alongside the RL agents.
+        dp_metric_entry = {
+            "episode": 0,
+            "total_reward": eval_stats["mean_reward"],
+            "total_sold": eval_stats.get("total_sold", 0),
+            "total_waste": eval_stats.get("total_waste", 0),
+            "total_stockout": eval_stats.get("total_stockout", 0),
+            "total_ordered": eval_stats.get("total_ordered", 0),
+            "steps": eval_stats.get("total_steps", 0),
+            "waste_rate": eval_stats.get("mean_waste_rate", 0.0),
+            "fill_rate": eval_stats.get("mean_fill_rate", 1.0),
+            "stockout_rate": eval_stats.get("mean_stockout_rate", 0.0),
+            "elapsed": 0.0,
+        }
+        with open(os.path.join(save_path, "metrics.json"), "w") as f:
+            json.dump([dp_metric_entry], f, indent=2)
+
+        # Write config.json for label discovery
+        config_dict = {
+            "agent_type": "dp",
+            "env": {
+                "shelf_life": config.env.shelf_life,
+                "max_order": config.env.max_order,
+                "max_inventory": config.env.max_inventory,
+                "horizon": config.env.horizon,
+                "demand_mean": config.env.demand_mean,
+            },
+            "dp": {
+                "theta": config.dp.theta,
+                "max_iter": config.dp.max_iter,
+            },
+            "seed": config.seed,
+        }
+        with open(os.path.join(save_path, "config.json"), "w") as f:
+            json.dump(config_dict, f, indent=2)
+
         if verbose:
             print(f"\nDP results saved to {save_path}")
 
@@ -244,6 +307,7 @@ def train_dp(
         "agent": dp_agent,
         "solve_stats": solve_stats,
         "eval_stats": eval_stats,
+        "save_path": save_path,
     }
 
 
@@ -328,7 +392,7 @@ def main():
     parser.add_argument(
         "--agent", "-a",
         type=str, default="qlearning",
-        choices=["qlearning", "sarsa", "mc", "dp"],
+        choices=["qlearning", "sarsa", "mc", "linear_fa", "dp"],
         help="Agent type to train",
     )
     parser.add_argument("--episodes", "-e", type=int, default=3000,

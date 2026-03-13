@@ -42,7 +42,7 @@ class TrainingConfig:
 class DPConfig:
     """Dynamic-programming parameters."""
     theta: float = 1e-6            # convergence threshold
-    max_iter: int = 1000           # maximum Bellman iterations
+    max_iter: int = 2000           # maximum Bellman iterations
 
 
 @dataclass

@@ -267,6 +267,137 @@ def plot_metrics_over_training(
 
 
 # ------------------------------------------------------------------ #
+#  Sensitivity analysis plots                                          #
+# ------------------------------------------------------------------ #
+
+def plot_sensitivity_by_param(
+    results: List[Dict[str, Any]],
+    param_name: str,
+    metric: str = "mean_reward",
+    title: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    figsize: Tuple[int, int] = (10, 6),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot a sensitivity metric vs one swept parameter, with one line per agent.
+
+    Args:
+        results: List of result dicts from run_sensitivity_analysis().
+        param_name: Which parameter to put on the x-axis
+                    (e.g. "shelf_life", "demand_mean", "waste_penalty", "stockout_penalty").
+        metric: Which metric to plot ("mean_reward", "mean_waste_rate", "mean_stockout_rate").
+        title: Plot title (auto-generated if None).
+        ylabel: Y-axis label (defaults to metric name).
+    """
+    import pandas as pd
+
+    df = pd.DataFrame(results)
+    if param_name not in df.columns or metric not in df.columns:
+        print(f"  [WARN] Column '{param_name}' or '{metric}' not in results — skipping.")
+        return plt.figure()
+
+    # Average over the other swept parameters so we get one curve per agent
+    group_cols = ["agent_type", param_name]
+    agg = df.groupby(group_cols, as_index=False)[metric].mean()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    for agent, grp in agg.groupby("agent_type"):
+        grp_sorted = grp.sort_values(param_name)
+        ax.plot(grp_sorted[param_name], grp_sorted[metric], marker="o", label=agent)
+
+    ax.set_xlabel(param_name.replace("_", " ").title(), fontsize=12)
+    ax.set_ylabel(ylabel or metric.replace("_", " ").title(), fontsize=12)
+    ax.set_title(title or f"{metric.replace('_', ' ').title()} vs {param_name.replace('_', ' ').title()}",
+                 fontsize=14, fontweight="bold")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    return fig
+
+
+def generate_sensitivity_plots(
+    results_path: str,
+    output_dir: str = "outputs/figures",
+) -> None:
+    """
+    Generate all sensitivity analysis plots from a saved JSON file.
+
+    Produces one figure per (parameter × metric) combination:
+      - shelf_life, demand_mean, waste_penalty, stockout_penalty
+      × mean_reward, mean_waste_rate, mean_stockout_rate
+    """
+    import pandas as pd
+
+    if not os.path.isfile(results_path):
+        print(f"Sensitivity results not found: {results_path}")
+        return
+
+    with open(results_path, "r") as f:
+        results = json.load(f)
+
+    if not results:
+        print("Sensitivity results file is empty.")
+        return
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    params = ["shelf_life", "demand_mean", "waste_penalty", "stockout_penalty"]
+    metrics = ["mean_reward", "mean_waste_rate", "mean_stockout_rate"]
+
+    df = pd.DataFrame(results)
+    present_params = [p for p in params if p in df.columns]
+    present_metrics = [m for m in metrics if m in df.columns]
+
+    saved = 0
+    for param in present_params:
+        for metric in present_metrics:
+            fname = f"sensitivity_{param}_{metric}.png"
+            plot_sensitivity_by_param(
+                results,
+                param_name=param,
+                metric=metric,
+                save_path=os.path.join(output_dir, fname),
+            )
+            plt.close()
+            saved += 1
+
+    print(f"\nSensitivity analysis: saved {saved} plots to {output_dir}")
+
+
+# ------------------------------------------------------------------ #
+#  DP convergence curve                                                #
+# ------------------------------------------------------------------ #
+
+def plot_dp_convergence(
+    deltas: List[float],
+    title: str = "DP Value Iteration Convergence",
+    figsize: Tuple[int, int] = (10, 6),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """Plot the Bellman error (delta) over VI iterations."""
+    fig, ax = plt.subplots(figsize=figsize)
+    iterations = np.arange(1, len(deltas) + 1)
+    ax.semilogy(iterations, deltas, color="blue", linewidth=1.5)
+    ax.set_xlabel("Iteration", fontsize=12)
+    ax.set_ylabel("Bellman Error (log scale)", fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3, which="both")
+    plt.tight_layout()
+
+    if save_path:
+        os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    return fig
+
+
+# ------------------------------------------------------------------ #
 #  Batch plot generation from outputs/runs                            #
 # ------------------------------------------------------------------ #
 
@@ -347,8 +478,12 @@ def generate_all_plots(
 
     saved = 0
 
-    # 1. Individual curves
-    for r in runs:
+    # Separate DP baseline (single-point, no learning trajectory)
+    # from episodic RL runs that have actual learning curves.
+    rl_runs = [r for r in runs if r["agent_type"] != "dp"]
+
+    # 1. Individual curves (RL agents only)
+    for r in rl_runs:
         plot_learning_curve(
             r["rewards"],
             title=f"Learning Curve \u2013 {r['agent_type']}",
@@ -357,21 +492,45 @@ def generate_all_plots(
         plt.close()
         saved += 1
 
-    # 2. Comparison overlay
-    if len(runs) > 1:
+    # 2. Comparison overlay (RL agents only)
+    if len(rl_runs) > 1:
         plot_comparison(
-            {r["label"]: r["rewards"] for r in runs},
+            {r["label"]: r["rewards"] for r in rl_runs},
             title="Learning Curves \u2013 All Agents",
             save_path=os.path.join(output_dir, "learning_curves_comparison.png"),
         )
         plt.close()
         saved += 1
 
+    # If available, use a common fixed-seed evaluation summary for
+    # cross-agent comparison metrics (apples-to-apples protocol).
+    eval_summary_path = os.path.join(results_dir, "evaluation_summary.json")
+    comparison_source = {r["label"]: r["summary"] for r in runs}
+    reward_title = "Mean Episode Reward (last 100 episodes)"
+    if os.path.isfile(eval_summary_path):
+        try:
+            with open(eval_summary_path, "r") as f:
+                eval_data = json.load(f)
+            comparison_source = {
+                k: {
+                    "mean_reward": v.get("evaluation", {}).get("mean_reward", 0.0),
+                    "std_reward": v.get("evaluation", {}).get("std_reward", 0.0),
+                    "mean_waste_rate": v.get("evaluation", {}).get("mean_waste_rate", 0.0),
+                    "mean_stockout_rate": v.get("evaluation", {}).get("mean_stockout_rate", 0.0),
+                    "mean_fill_rate": v.get("evaluation", {}).get("mean_fill_rate", 1.0),
+                }
+                for k, v in eval_data.items()
+            }
+            print("Using evaluation_summary.json for comparison bar/scatter metrics")
+            reward_title = "Mean Episode Reward (common evaluation protocol)"
+        except (json.JSONDecodeError, ValueError, AttributeError):
+            print("  [WARN] Invalid evaluation_summary.json, falling back to training summaries")
+
     # 3. Bar chart
     plot_bar_comparison(
-        {r["label"]: r["summary"] for r in runs},
+        comparison_source,
         metric_name="mean_reward", error_metric="std_reward",
-        title="Mean Episode Reward (last 100 episodes)",
+        title=reward_title,
         ylabel="Mean Reward",
         save_path=os.path.join(output_dir, "bar_reward_comparison.png"),
     )
@@ -380,12 +539,24 @@ def generate_all_plots(
 
     # 4. Tradeoff scatter
     plot_waste_stockout_tradeoff(
-        {r["label"]: r["summary"] for r in runs},
+        comparison_source,
         title="Waste Rate vs Stockout Rate",
         save_path=os.path.join(output_dir, "waste_stockout_tradeoff.png"),
     )
     plt.close()
     saved += 1
+
+    # 5. DP convergence curve (if convergence.json exists)
+    dp_conv_path = os.path.join(results_dir, "dp", "convergence.json")
+    if os.path.isfile(dp_conv_path):
+        with open(dp_conv_path, "r") as f:
+            deltas = json.load(f)
+        plot_dp_convergence(
+            deltas,
+            save_path=os.path.join(output_dir, "dp_convergence.png"),
+        )
+        plt.close()
+        saved += 1
 
     print(f"\nDone \u2013 saved {saved} plots to {output_dir}")
 

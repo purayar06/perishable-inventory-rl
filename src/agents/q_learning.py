@@ -22,6 +22,7 @@ class QLearningAgent(TabularAgent):
         total_sold = 0
         total_waste = 0
         total_stockout = 0
+        total_ordered = 0
 
         while True:
             action = self.select_action(state, training=True)
@@ -40,6 +41,7 @@ class QLearningAgent(TabularAgent):
             total_sold += info["sold"]
             total_waste += info["waste"]
             total_stockout += info["stockout"]
+            total_ordered += info["order"]
 
             state = next_state
             if done:
@@ -52,4 +54,5 @@ class QLearningAgent(TabularAgent):
             "total_sold": total_sold,
             "total_waste": total_waste,
             "total_stockout": total_stockout,
+            "total_ordered": total_ordered,
         }

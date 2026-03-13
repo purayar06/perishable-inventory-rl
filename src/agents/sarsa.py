@@ -24,6 +24,7 @@ class SARSAAgent(TabularAgent):
         total_sold = 0
         total_waste = 0
         total_stockout = 0
+        total_ordered = 0
 
         while True:
             next_state, reward, terminated, truncated, info = env.step(action)
@@ -40,6 +41,7 @@ class SARSAAgent(TabularAgent):
             total_sold += info["sold"]
             total_waste += info["waste"]
             total_stockout += info["stockout"]
+            total_ordered += info["order"]
 
             state = next_state
             action = next_action
@@ -54,4 +56,5 @@ class SARSAAgent(TabularAgent):
             "total_sold": total_sold,
             "total_waste": total_waste,
             "total_stockout": total_stockout,
+            "total_ordered": total_ordered,
         }

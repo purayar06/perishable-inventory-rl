@@ -1,5 +1,5 @@
 """
-Dynamic Programming – Value Iteration for the perishable inventory MDP.
+Dynamic Programming - Value Iteration for the perishable inventory MDP.
 
 Requires a model: the environment's simulate_step() and
 get_demand_distribution() methods.
@@ -25,10 +25,12 @@ class DPValueIterationAgent:
         self,
         env: PerishableInventoryEnv,
         config: Optional[DPConfig] = None,
+        gamma: float = 0.99,
         verbose: bool = True,
     ):
         self.env = env
         self.cfg = config or DPConfig()
+        self.gamma = gamma
         self.verbose = verbose
 
         self.D = env.D
@@ -52,8 +54,9 @@ class DPValueIterationAgent:
         """Run value iteration until convergence."""
         t0 = time.time()
         theta = self.cfg.theta
-        gamma = 0.99
+        gamma = self.gamma
         converged = False
+        self.convergence_history: list[float] = []
 
         for iteration in range(1, self.cfg.max_iter + 1):
             delta = 0.0
@@ -73,6 +76,8 @@ class DPValueIterationAgent:
 
                 self.V[idx] = best_value
                 delta = max(delta, abs(old_v - best_value))
+
+            self.convergence_history.append(delta)
 
             if self.verbose and iteration % 10 == 0:
                 print(f"  VI iter {iteration:4d}  |  delta = {delta:.8f}")
@@ -101,6 +106,7 @@ class DPValueIterationAgent:
             "iterations": iteration,
             "final_delta": float(delta),
             "elapsed_sec": elapsed,
+            "convergence_history": self.convergence_history,
         }
         if self.verbose:
             print(f"\nValue iteration {'converged' if converged else 'stopped'} "
@@ -111,7 +117,7 @@ class DPValueIterationAgent:
     #  Action selection                                                   #
     # ------------------------------------------------------------------ #
 
-    def select_action(self, state: Tuple[int, ...]) -> int:
+    def select_action(self, state: Tuple[int, ...], training: bool = False) -> int:
         return self.policy.get(state, 0)
 
     # ------------------------------------------------------------------ #
@@ -126,11 +132,12 @@ class DPValueIterationAgent:
     ) -> Dict[str, float]:
         rng = np.random.RandomState(seed)
         rewards, wastes, stockouts, fills = [], [], [], []
+        total_sold = total_waste = total_stockout = total_ordered = total_steps = 0
 
         for _ in range(num_episodes):
             state, _ = env.reset(seed=int(rng.randint(0, 2**31)))
             ep_reward = 0.0
-            ep_sold = ep_waste = ep_stockout = 0
+            ep_sold = ep_waste = ep_stockout = ep_ordered = 0
 
             while True:
                 action = self.select_action(state)
@@ -139,21 +146,34 @@ class DPValueIterationAgent:
                 ep_sold += info["sold"]
                 ep_waste += info["waste"]
                 ep_stockout += info["stockout"]
+                ep_ordered += info["order"]
+                total_steps += 1
                 if terminated or truncated:
                     break
 
             rewards.append(ep_reward)
             total_demand = ep_sold + ep_stockout
-            wastes.append(ep_waste)
-            stockouts.append(ep_stockout)
+            wastes.append(ep_waste / ep_ordered if ep_ordered > 0 else 0.0)
+            stockouts.append(ep_stockout / total_demand if total_demand > 0 else 0.0)
             fills.append(ep_sold / total_demand if total_demand > 0 else 1.0)
+            total_sold += ep_sold
+            total_waste += ep_waste
+            total_stockout += ep_stockout
+            total_ordered += ep_ordered
 
         return {
+            "num_episodes": num_episodes,
+            "seed": seed,
             "mean_reward": float(np.mean(rewards)),
             "std_reward": float(np.std(rewards)),
-            "mean_waste": float(np.mean(wastes)),
-            "mean_stockout": float(np.mean(stockouts)),
+            "mean_waste_rate": float(np.mean(wastes)),
+            "mean_stockout_rate": float(np.mean(stockouts)),
             "mean_fill_rate": float(np.mean(fills)),
+            "total_sold": int(total_sold),
+            "total_waste": int(total_waste),
+            "total_stockout": int(total_stockout),
+            "total_ordered": int(total_ordered),
+            "total_steps": int(total_steps),
         }
 
     def get_policy_summary(self) -> Dict[str, Any]:

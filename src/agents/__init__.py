@@ -3,6 +3,7 @@ from .q_learning import QLearningAgent
 from .sarsa import SARSAAgent
 from .mc_control import MonteCarloAgent
 from .dp_value_iteration import DPValueIterationAgent
+from .linear_fa import LinearFAAgent
 
 __all__ = [
     "BaseAgent",
@@ -11,4 +12,5 @@ __all__ = [
     "SARSAAgent",
     "MonteCarloAgent",
     "DPValueIterationAgent",
+    "LinearFAAgent",
 ]

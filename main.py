@@ -14,6 +14,7 @@ outputs/figures/.
 """
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -27,14 +28,15 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from src.config import Config, EnvConfig, TrainingConfig
-from src.experiments.train import train_agent, generate_post_training_plots
-from src.plotting.make_plots import generate_all_plots
+from src.experiments.train import train_agent, train_dp, generate_post_training_plots
+from src.experiments.evaluate import evaluate_all_runs
+from src.plotting.make_plots import generate_all_plots, plot_dp_convergence
 
 
 # ------------------------------------------------------------------ #
 #  Defaults                                                           #
 # ------------------------------------------------------------------ #
-ALL_AGENTS = ["qlearning", "sarsa", "mc"]
+ALL_AGENTS = ["qlearning", "sarsa", "mc", "linear_fa", "dp"]
 
 RUNS_DIR    = os.path.join("outputs", "runs")
 FIGURES_DIR = os.path.join("outputs", "figures")
@@ -80,16 +82,25 @@ def train_all(
 
         save_path = os.path.join(RUNS_DIR, agent_type)
 
-        result = train_agent(
-            agent_type=agent_type,
-            config=config,
-            verbose=True,
-            save_path=save_path,
-        )
-
-        results[agent_type] = result
-        print(f"  → Mean reward (last 100 eps): "
-              f"{result['final_stats']['mean_reward']:.2f}")
+        if agent_type == "dp":
+            result = train_dp(
+                config=config,
+                verbose=True,
+                save_path=save_path,
+            )
+            results[agent_type] = result
+            print(f"  → DP eval mean reward: "
+                  f"{result['eval_stats']['mean_reward']:.2f}")
+        else:
+            result = train_agent(
+                agent_type=agent_type,
+                config=config,
+                verbose=True,
+                save_path=save_path,
+            )
+            results[agent_type] = result
+            print(f"  → Mean reward (last 100 eps): "
+                  f"{result['final_stats']['mean_reward']:.2f}")
 
     return results
 
@@ -114,8 +125,24 @@ def plot_all(results: dict | None = None) -> None:
     os.makedirs(FIGURES_DIR, exist_ok=True)
 
     # Per-agent metric panels (if we just trained)
+    # Skip DP — it has no episodic learning trajectory.
     if results:
         for agent_type, res in results.items():
+            if agent_type == "dp":
+                # Generate convergence curve instead
+                conv_file = os.path.join(
+                    res.get("save_path", os.path.join(RUNS_DIR, "dp")),
+                    "convergence.json",
+                )
+                if os.path.isfile(conv_file):
+                    with open(conv_file, "r") as f:
+                        deltas = json.load(f)
+                    plot_dp_convergence(
+                        deltas,
+                        save_path=os.path.join(FIGURES_DIR, "dp_convergence.png"),
+                    )
+                    plt.close()
+                continue
             metrics_file = os.path.join(
                 res.get("save_path", os.path.join(RUNS_DIR, agent_type)),
                 "metrics.json",
@@ -138,6 +165,21 @@ def plot_all(results: dict | None = None) -> None:
     generate_all_plots(RUNS_DIR, FIGURES_DIR)
 
 
+def run_common_evaluation(eval_episodes: int = 100, eval_seed: int = 123) -> None:
+    """Evaluate all available runs using one fixed-seed protocol."""
+    print(f"\n{'='*60}")
+    print("  Running common evaluation protocol")
+    print(f"{'='*60}")
+    save_path = os.path.join(RUNS_DIR, "evaluation_summary.json")
+    evaluate_all_runs(
+        runs_dir=RUNS_DIR,
+        num_episodes=eval_episodes,
+        seed=eval_seed,
+        save_path=save_path,
+    )
+    print(f"  → Saved evaluation summary: {os.path.abspath(save_path)}")
+
+
 # ------------------------------------------------------------------ #
 #  CLI                                                                 #
 # ------------------------------------------------------------------ #
@@ -152,7 +194,7 @@ def parse_args():
     p.add_argument(
         "--agents", nargs="+", default=ALL_AGENTS,
         choices=ALL_AGENTS,
-        help="Which agents to train (default: all three).",
+        help="Which agents to train (default: all agents including DP baseline).",
     )
     p.add_argument(
         "--plot-only", action="store_true",
@@ -162,10 +204,14 @@ def parse_args():
         "--no-plot", action="store_true",
         help="Train agents but skip plot generation.",
     )
+    p.add_argument(
+        "--no-eval", action="store_true",
+        help="Skip common fixed-seed evaluation across all available runs.",
+    )
 
     # Hyper-parameters
-    p.add_argument("--episodes", "-e", type=int, default=1000,
-                    help="Training episodes per agent (default 1000).")
+    p.add_argument("--episodes", "-e", type=int, default=3000,
+                    help="Training episodes per agent (default 3000).")
     p.add_argument("--shelf-life", "-d", type=int, default=3,
                     help="Shelf life D (default 3).")
     p.add_argument("--max-order", type=int, default=5,
@@ -180,6 +226,10 @@ def parse_args():
                     help="Discount factor (default 0.99).")
     p.add_argument("--seed", "-s", type=int, default=42,
                     help="Random seed (default 42).")
+    p.add_argument("--eval-episodes", type=int, default=100,
+                    help="Evaluation episodes for common protocol (default 100).")
+    p.add_argument("--eval-seed", type=int, default=123,
+                    help="Evaluation seed for common protocol (default 123).")
 
     return p.parse_args()
 
@@ -207,6 +257,10 @@ def main():
     # ---- Plotting phase ----
     if not args.no_plot:
         plot_all(results)
+
+    # ---- Common evaluation phase ----
+    if not args.no_eval:
+        run_common_evaluation(args.eval_episodes, args.eval_seed)
 
     elapsed = time.time() - t0
     print(f"\n{'='*60}")

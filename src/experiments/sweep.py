@@ -23,6 +23,8 @@ def run_single_experiment(
     Train an agent with multiple seeds and return averaged results.
     """
     all_rewards = []
+    all_waste = []
+    all_stockout = []
     for i in range(num_seeds):
         cfg = Config(
             env=config.env,
@@ -30,12 +32,17 @@ def run_single_experiment(
             seed=base_seed + i,
         )
         result = train_agent(agent_type, cfg, verbose=False)
-        all_rewards.append(result["final_stats"]["mean_reward"])
+        stats = result["final_stats"]
+        all_rewards.append(stats["mean_reward"])
+        all_waste.append(stats.get("mean_waste_rate", 0.0))
+        all_stockout.append(stats.get("mean_stockout_rate", 0.0))
 
     return {
         "mean_reward": float(np.mean(all_rewards)),
         "std_reward": float(np.std(all_rewards)),
         "individual_rewards": all_rewards,
+        "mean_waste_rate": float(np.mean(all_waste)),
+        "mean_stockout_rate": float(np.mean(all_stockout)),
     }
 
 
@@ -52,7 +59,7 @@ def run_sweep(
     Grid search over agent types × alphas × epsilon_decays × demand_means.
     """
     if agent_types is None:
-        agent_types = ["qlearning", "sarsa", "mc"]
+        agent_types = ["qlearning", "sarsa", "mc", "linear_fa"]
     if alphas is None:
         alphas = [0.05, 0.1, 0.2]
     if epsilon_decays is None:

@@ -23,6 +23,7 @@ class EpisodeMetrics:
     total_sold: int = 0
     total_waste: int = 0
     total_stockout: int = 0
+    total_ordered: int = 0
     steps: int = 0
     waste_rate: float = 0.0
     fill_rate: float = 1.0
@@ -36,6 +37,7 @@ class EpisodeMetrics:
             "total_sold": int(self.total_sold),
             "total_waste": int(self.total_waste),
             "total_stockout": int(self.total_stockout),
+            "total_ordered": int(self.total_ordered),
             "steps": int(self.steps),
             "waste_rate": float(self.waste_rate),
             "fill_rate": float(self.fill_rate),
@@ -68,6 +70,7 @@ class MetricsTracker:
         sold: int = 0,
         waste: int = 0,
         stockout: int = 0,
+        ordered: int = 0,
     ) -> None:
         if self._current is None:
             return
@@ -75,6 +78,7 @@ class MetricsTracker:
         self._current.total_sold += sold
         self._current.total_waste += waste
         self._current.total_stockout += stockout
+        self._current.total_ordered += ordered
         self._current.steps += 1
 
     def end_episode(self) -> EpisodeMetrics:
@@ -89,8 +93,8 @@ class MetricsTracker:
             m.fill_rate = 1.0
             m.stockout_rate = 0.0
 
-        total_items = m.total_sold + m.total_waste
-        m.waste_rate = m.total_waste / total_items if total_items > 0 else 0.0
+        # waste_rate = expired / ordered (proposal definition)
+        m.waste_rate = m.total_waste / m.total_ordered if m.total_ordered > 0 else 0.0
 
         self.metrics.append(m)
         self._current = None
