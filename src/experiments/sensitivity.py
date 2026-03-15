@@ -13,8 +13,8 @@ from typing import List, Optional, Dict, Any
 
 import numpy as np
 
-from ..config import Config, EnvConfig, TrainingConfig
-from .train import train_agent
+from ..config import Config, EnvConfig, TrainingConfig, DPConfig
+from .train import train_agent, train_dp
 
 
 def run_sensitivity_analysis(
@@ -46,7 +46,7 @@ def run_sensitivity_analysis(
         List of result dictionaries.
     """
     if agent_types is None:
-        agent_types = ["qlearning", "sarsa", "mc", "linear_fa"]
+        agent_types = ["qlearning", "sarsa", "mc", "linear_fa", "dp"]
     if shelf_lives is None:
         shelf_lives = [2, 3, 5]
     if demand_means is None:
@@ -78,10 +78,25 @@ def run_sensitivity_analysis(
                     stockout_penalty=s,
                 ),
                 training=TrainingConfig(episodes=episodes),
+                dp=DPConfig(),
                 seed=base_seed + seed_i,
             )
-            result = train_agent(agent, cfg, verbose=False)
-            stats = result["final_stats"]
+            
+            if agent == "dp":
+                if D > 2:
+                    # DP is too slow/memory intensive for D > 2 in a sweep
+                    stats = {"mean_reward": float('-inf'), "mean_waste_rate": 0.0, "mean_stockout_rate": 0.0}
+                else:
+                    # For DP, we only need to solve once (it's exact), but we can evaluate it
+                    # over the seeds to maintain the same format, or just solve and evaluate once.
+                    if seed_i == 0:
+                        dp_res = train_dp(cfg, verbose=False)
+                        dp_stats = dp_res["eval_stats"]
+                    stats = dp_stats # Reuse exact same eval stats for the 3 'seeds' to match format
+            else:
+                result = train_agent(agent, cfg, verbose=False)
+                stats = result["final_stats"]
+                
             seed_rewards.append(stats["mean_reward"])
             seed_waste.append(stats.get("mean_waste_rate", 0.0))
             seed_stockout.append(stats.get("mean_stockout_rate", 0.0))
