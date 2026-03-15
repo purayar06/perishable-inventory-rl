@@ -1,0 +1,15 @@
+{
+  "agent_type": "dp",
+  "env": {
+    "shelf_life": 3,
+    "max_order": 5,
+    "max_inventory": 10,
+    "horizon": 60,
+    "demand_mean": 6.0
+  },
+  "dp": {
+    "theta": 1e-06,
+    "max_iter": 2000
+  },
+  "seed": 42
+}

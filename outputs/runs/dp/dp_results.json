@@ -1,0 +1,27 @@
+{
+  "solve_stats": {
+    "converged": true,
+    "iterations": 1257,
+    "final_delta": 9.994614629249554e-07,
+    "elapsed_sec": 1931.7763710021973
+  },
+  "eval_stats": {
+    "num_episodes": 100,
+    "seed": 123,
+    "mean_reward": 1295.1,
+    "std_reward": 145.8885533549497,
+    "mean_waste_rate": 0.0024333333333333334,
+    "mean_stockout_rate": 0.16462728453036288,
+    "mean_fill_rate": 0.8353727154696372,
+    "total_sold": 29778,
+    "total_waste": 73,
+    "total_stockout": 5979,
+    "total_ordered": 30000,
+    "total_steps": 6000
+  },
+  "policy_summary": {
+    "num_states": 1331,
+    "mean_action": 2.7573253193087903,
+    "max_action": 5
+  }
+}

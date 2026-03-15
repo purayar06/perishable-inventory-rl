@@ -1,0 +1,19 @@
+{
+  "agent_type": "linear_fa",
+  "env": {
+    "shelf_life": 3,
+    "max_order": 5,
+    "max_inventory": 10,
+    "horizon": 60,
+    "demand_mean": 6.0
+  },
+  "training": {
+    "episodes": 3000,
+    "gamma": 0.99,
+    "alpha": 0.1,
+    "epsilon_start": 1.0,
+    "epsilon_min": 0.05,
+    "epsilon_decay": 0.995
+  },
+  "seed": 42
+}

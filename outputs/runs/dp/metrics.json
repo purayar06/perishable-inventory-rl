@@ -1,0 +1,15 @@
+[
+  {
+    "episode": 0,
+    "total_reward": 1295.1,
+    "total_sold": 29778,
+    "total_waste": 73,
+    "total_stockout": 5979,
+    "total_ordered": 30000,
+    "steps": 6000,
+    "waste_rate": 0.0024333333333333334,
+    "fill_rate": 0.8353727154696372,
+    "stockout_rate": 0.16462728453036288,
+    "elapsed": 0.0
+  }
+]

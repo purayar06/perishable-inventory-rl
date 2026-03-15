@@ -1,0 +1,87 @@
+{
+  "dp": {
+    "agent_type": "dp",
+    "evaluation": {
+      "num_episodes": 100,
+      "seed": 123,
+      "mean_reward": 1295.1,
+      "std_reward": 145.8885533549497,
+      "mean_waste_rate": 0.0024333333333333334,
+      "mean_stockout_rate": 0.16462728453036288,
+      "mean_fill_rate": 0.8353727154696372,
+      "total_sold": 29778,
+      "total_waste": 73,
+      "total_stockout": 5979,
+      "total_ordered": 30000,
+      "total_steps": 6000
+    }
+  },
+  "linear_fa": {
+    "agent_type": "linear_fa",
+    "evaluation": {
+      "num_episodes": 100,
+      "seed": 123,
+      "mean_reward": -311.92,
+      "std_reward": 397.271385327461,
+      "mean_waste_rate": 0.001815200985527266,
+      "mean_stockout_rate": 0.4864256818424548,
+      "mean_fill_rate": 0.5135743181575453,
+      "total_sold": 18250,
+      "total_waste": 36,
+      "total_stockout": 17507,
+      "total_ordered": 18355,
+      "total_steps": 6000
+    }
+  },
+  "mc": {
+    "agent_type": "mc",
+    "evaluation": {
+      "num_episodes": 100,
+      "seed": 123,
+      "mean_reward": -2022.6,
+      "std_reward": 165.90828791835565,
+      "mean_waste_rate": 0.0,
+      "mean_stockout_rate": 0.8320384831224438,
+      "mean_fill_rate": 0.16796151687755617,
+      "total_sold": 5986,
+      "total_waste": 0,
+      "total_stockout": 29771,
+      "total_ordered": 5988,
+      "total_steps": 6000
+    }
+  },
+  "qlearning": {
+    "agent_type": "qlearning",
+    "evaluation": {
+      "num_episodes": 100,
+      "seed": 123,
+      "mean_reward": 1148.68,
+      "std_reward": 129.89694992570074,
+      "mean_waste_rate": 0.0003906631702524435,
+      "mean_stockout_rate": 0.19616001932997565,
+      "mean_fill_rate": 0.8038399806700244,
+      "total_sold": 28671,
+      "total_waste": 11,
+      "total_stockout": 7086,
+      "total_ordered": 28772,
+      "total_steps": 6000
+    }
+  },
+  "sarsa": {
+    "agent_type": "sarsa",
+    "evaluation": {
+      "num_episodes": 100,
+      "seed": 123,
+      "mean_reward": 1243.02,
+      "std_reward": 132.85465592142415,
+      "mean_waste_rate": 0.000723317741809835,
+      "mean_stockout_rate": 0.1766921733964918,
+      "mean_fill_rate": 0.8233078266035081,
+      "total_sold": 29360,
+      "total_waste": 21,
+      "total_stockout": 6397,
+      "total_ordered": 29499,
+      "total_steps": 6000
+    }
+  }
+}
