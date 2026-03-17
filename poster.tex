@@ -96,7 +96,7 @@
 \begin{itemize}
   \item \textbf{Demand:} $d_t \sim \text{Poisson}(\lambda)$, default $\lambda = 6$ units/day, truncated for DP.
   \item \textbf{Shelf-life:} $D$ days (default $D=3$); units age through $D$ age-buckets.
-  \item \textbf{Selling rule:} FEFO (First-Expire-First-Out) --- oldest items sold first.
+  \item \textbf{Selling rule:} FEFO (First-Expire-First-Out) - oldest items sold first.
   \item \textbf{Episode horizon:} $T = 60$ days.
 \end{itemize}
 \end{block}
@@ -162,7 +162,7 @@ $p=10$ & $c=4$ & $w=6$ & $s=8$ \\
 \toprule
 \textbf{Algorithm} & \textbf{Type} & \textbf{Update} \\
 \midrule
-DP -- Value Iter.      & Model-based   & $V(s)\!\leftarrow\!\max_a \sum_d P(d)[R\!+\!\gamma V(s')]$ \\[3pt]
+DP - Value Iter.      & Model-based   & $V(s)\!\leftarrow\!\max_a \sum_d P(d)[R\!+\!\gamma V(s')]$ \\[3pt]
 Q-Learning             & Off-policy TD & $Q \leftarrow Q + \alpha[r\!+\!\gamma\max_{a'}Q' - Q]$ \\[3pt]
 SARSA                  & On-policy TD  & $Q \leftarrow Q + \alpha[r\!+\!\gamma Q(s',a') - Q]$ \\[3pt]
 Monte Carlo            & First-visit   & $Q \leftarrow Q + \alpha[G - Q]$ \\[3pt]
@@ -270,7 +270,7 @@ Linear FA      & $-311.9 \pm 397.3$   & 0.18  & 48.6  & 51.4  \\
 \begin{itemize}
   \item \textbf{DP} provides the theoretical upper bound but is intractable for large $D$ or $N_{\max}$ (state explosion $(N_{\max}\!+\!1)^D$).
   \item \textbf{Q-Learning \& SARSA} achieve near-optimal performance via tabular TD, converging within ${\sim}2\,000$ episodes.
-  \item \textbf{SARSA} (on-policy) is more conservative: lower waste, slightly higher stockout --- reflecting the exploration--exploitation trade-off in ordering.
+  \item \textbf{SARSA} (on-policy) is more conservative: lower waste, slightly higher stockout - reflecting the exploration - exploitation trade-off in ordering.
   \item \textbf{Monte Carlo} converges slower due to high variance over the 60-step horizon.
 \end{itemize}
 \end{alertblock}
@@ -321,7 +321,7 @@ Stockout penalty $s$  & 4.0, 8.0, 12.0 \\
 \end{itemize}
 
 \begin{center}
-  \includegraphics[width=0.5\linewidth]{figures/sensitivity_shelf_life_mean_reward.png}\\
+  \includegraphics[width=0.58\linewidth]{figures/sensitivity_shelf_life_mean_reward.png}\\
   {\footnotesize Mean reward vs.\ shelf-life $D$ (per agent).}
 \end{center}
 
@@ -333,16 +333,16 @@ Stockout penalty $s$  & 4.0, 8.0, 12.0 \\
 \textbf{Conclusion}
 \begin{itemize}
   \item \textbf{DP} yields the optimal baseline but scales as $\mathcal{O}\bigl((N_{\max}\!+\!1)^D\bigr)$.
-  \item \textbf{Tabular TD} (Q-Learning, SARSA) reaches near-optimal performance without a model.
-  \item \textbf{Linear FA} bridges tabular and deep RL with only $D\!+\!3$ hand-crafted features.
-  \item The \textbf{waste--stockout trade-off} is the defining tension; on-policy methods favour safety.
+    \item \textbf{Tabular TD} (Q-Learning, SARSA) reaches near-optimal performance without a model.
+  \item \textbf{Linear FA} struggles to capture non-linear base-stock thresholds, motivating the need for Deep RL.
+  \item The \textbf{waste-stockout trade-off} is the defining tension; on-policy methods favour safety.
 \end{itemize}
 
 \medskip
 \textbf{Future Work}
 \begin{enumerate}
   \item \textbf{Deep RL (DQN / PPO):} Neural function approximators for realistic $D \geq 7$ and continuous order quantities.
-  \item \textbf{Non-stationary \& multi-product demand:} Time-varying distributions (seasonal), shared warehouse capacity --- closer to real retail.
+  \item \textbf{Non-stationary \& multi-product demand:} Time-varying distributions (seasonal), shared warehouse capacity - closer to real retail.
 \end{enumerate}
 
 \end{alertblock}
